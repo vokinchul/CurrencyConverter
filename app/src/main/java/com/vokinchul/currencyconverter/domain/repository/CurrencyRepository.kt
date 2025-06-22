@@ -3,10 +3,6 @@ package com.vokinchul.currencyconverter.domain.repository
 import com.vokinchul.currencyconverter.domain.model.CurrencyRate
 
 interface CurrencyRepository {
-    suspend fun getLatestRates(
-        baseCurrency: String,
-        targetCurrencies: List<String>?
-    ): List<CurrencyRate>
 
     suspend fun getAvailableCurrencies(): Map<String, String>
 
@@ -15,4 +11,5 @@ interface CurrencyRepository {
         baseCurrency: String,
         targetCurrencies: List<String>
     ): List<CurrencyRate>
+
 }

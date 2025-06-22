@@ -1,4 +1,4 @@
-package com.vokinchul.currencyconverter.domain.feature
+package com.vokinchul.currencyconverter.ui.feature
 
 import com.vokinchul.currencyconverter.domain.model.CurrencyRate
 import java.text.SimpleDateFormat

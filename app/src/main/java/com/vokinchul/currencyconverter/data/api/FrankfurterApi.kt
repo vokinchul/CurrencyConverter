@@ -1,17 +1,11 @@
 package com.vokinchul.currencyconverter.data.api
 
-import com.vokinchul.currencyconverter.domain.entity.LatestRatesResponse
+import com.vokinchul.currencyconverter.data.model.LatestRatesResponse
 import retrofit2.http.GET
 import retrofit2.http.Path
 import retrofit2.http.Query
 
 interface FrankfurterApi {
-    @GET("latest")
-    suspend fun getLatestRates(
-        @Query("from") baseCurrency: String,
-        @Query("to") targetCurrencies: String? = null
-    ): LatestRatesResponse
-
     @GET("currencies")
     suspend fun getAvailableCurrencies(): Map<String, String>
 

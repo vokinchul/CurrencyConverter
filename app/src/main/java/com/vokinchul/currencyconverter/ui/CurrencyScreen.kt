@@ -51,9 +51,14 @@ import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
-import com.vokinchul.currencyconverter.domain.feature.Effect
-import com.vokinchul.currencyconverter.domain.feature.Event
-import com.vokinchul.currencyconverter.domain.feature.State
+import com.vokinchul.currencyconverter.ui.feature.ChangeAmount
+import com.vokinchul.currencyconverter.ui.feature.ChangeDate
+import com.vokinchul.currencyconverter.ui.feature.ChangeFromCurrency
+import com.vokinchul.currencyconverter.ui.feature.ReplaceSelectedCurrencies
+import com.vokinchul.currencyconverter.ui.feature.ShowError
+import com.vokinchul.currencyconverter.ui.feature.State
+import com.vokinchul.currencyconverter.ui.feature.ToggleAllCurrencies
+import com.vokinchul.currencyconverter.ui.feature.ToggleToCurrency
 import com.vokinchul.currencyconverter.ui.viewModel.CurrencyViewModel
 import org.koin.androidx.compose.koinViewModel
 import java.text.SimpleDateFormat
@@ -73,7 +78,7 @@ fun CurrencyScreen(
     LaunchedEffect(Unit) {
         viewModel.effect.collect { effect ->
             when (effect) {
-                is Effect.ShowError -> {
+                is ShowError -> {
                     Toast.makeText(context, effect.message, Toast.LENGTH_SHORT).show()
                 }
             }
@@ -90,11 +95,11 @@ fun CurrencyScreen(
             title = { Text("Currency Converter") },
         )
 
-        FromCurrency(state, viewModel)
+        CurrencyView(state, viewModel, fromCurrency = true)
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        ToCurrency(state, viewModel)
+        CurrencyView(state, viewModel, fromCurrency = false)
 
         Spacer(modifier = Modifier.height(16.dp))
 
@@ -114,12 +119,14 @@ fun CurrencyScreen(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun FromCurrency(
+private fun CurrencyView(
     state: State,
-    viewModel: CurrencyViewModel
+    viewModel: CurrencyViewModel,
+    fromCurrency: Boolean
 ) {
     var expanded by remember { mutableStateOf(false) }
     val focusManager = LocalFocusManager.current
+    val allSelected = state.toCurrencies.size == state.currencies.size
 
     ExposedDropdownMenuBox(
         expanded = expanded,
@@ -127,14 +134,22 @@ private fun FromCurrency(
     ) {
         OutlinedTextField(
             modifier = Modifier
-                .menuAnchor(MenuAnchorType.PrimaryNotEditable)
-                .fillMaxWidth(),
+                .fillMaxWidth()
+                .menuAnchor(
+                    if (fromCurrency) MenuAnchorType.PrimaryNotEditable
+                    else MenuAnchorType.PrimaryEditable
+                ),
             readOnly = true,
-            value = "${
-                state.currencies[state.fromCurrency] ?: state.fromCurrency
-            } (${state.fromCurrency})",
+            value = when {
+                fromCurrency -> "${state.currencies[state.fromCurrency] ?: state.fromCurrency} (${state.fromCurrency})"
+                allSelected -> "All currencies"
+                state.toCurrencies.isEmpty() -> "No currencies selected"
+                else -> state.toCurrencies.joinToString {
+                    state.currencies[it] ?: it
+                }
+            },
             onValueChange = {},
-            label = { Text("From currency") },
+            label = { Text(if (fromCurrency) "From currency" else "To currencies") },
             trailingIcon = {
                 ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded)
             },
@@ -145,7 +160,24 @@ private fun FromCurrency(
             expanded = expanded,
             onDismissRequest = { expanded = false }
         ) {
+            if (!fromCurrency) {
+                DropdownMenuItem(
+                    text = { Text("All currencies") },
+                    onClick = {
+                        viewModel.onEvent(ToggleAllCurrencies(selectAll = !allSelected))
+                        expanded = false
+                    },
+                    trailingIcon = {
+                        if (allSelected) Icon(Icons.Default.Check, null)
+                    }
+                )
+                Divider()
+            }
+
             state.currencies.keys.sorted().forEach { currency ->
+                val isSelected = if (fromCurrency) state.fromCurrency == currency
+                else state.toCurrencies.contains(currency)
+
                 DropdownMenuItem(
                     text = {
                         Text(
@@ -154,78 +186,32 @@ private fun FromCurrency(
                         )
                     },
                     onClick = {
-                        viewModel.onEvent(Event.ChangeFromCurrency(currency))
+                        if (fromCurrency) {
+                            viewModel.onEvent(ChangeFromCurrency(currency))
+                        } else {
+                            when {
+                                allSelected -> {
+                                    viewModel.onEvent(
+                                        ReplaceSelectedCurrencies(
+                                            setOf(currency)
+                                        )
+                                    )
+                                }
+
+                                state.toCurrencies.size == 1 && isSelected -> {
+                                    viewModel.onEvent(ToggleAllCurrencies(selectAll = true))
+                                }
+
+                                else -> {
+                                    viewModel.onEvent(ToggleToCurrency(currency))
+                                }
+                            }
+                        }
                         expanded = false
                         focusManager.clearFocus()
-                    }
-                )
-            }
-        }
-    }
-}
-
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun ToCurrency(
-    state: State,
-    viewModel: CurrencyViewModel
-) {
-    var expanded by remember { mutableStateOf(false) }
-    val allSelected = state.toCurrencies.size == state.currencies.size
-
-    ExposedDropdownMenuBox(
-        expanded = expanded,
-        onExpandedChange = { expanded = it }
-    ) {
-        OutlinedTextField(
-            value = when {
-                state.currencies.isEmpty() -> "Loading..."
-                allSelected -> "All currencies"
-                state.toCurrencies.size == 1 -> state.currencies[state.toCurrencies.first()]
-                    ?: state.toCurrencies.first()
-
-                else -> "${state.toCurrencies.size} selected"
-            },
-            onValueChange = {},
-            modifier = Modifier
-                .fillMaxWidth()
-                .menuAnchor(MenuAnchorType.PrimaryEditable),
-            label = { Text("To currencies") },
-            readOnly = true,
-            trailingIcon = {
-                ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded)
-            },
-            colors = ExposedDropdownMenuDefaults.outlinedTextFieldColors(),
-            shape = MaterialTheme.shapes.small
-        )
-
-        ExposedDropdownMenu(
-            expanded = expanded,
-            onDismissRequest = { expanded = false }
-        ) {
-            DropdownMenuItem(
-                text = { Text("All currencies") },
-                onClick = {
-                    viewModel.onEvent(Event.ToggleAllCurrencies(selectAll = !allSelected))
-                },
-                trailingIcon = {
-                    if (allSelected) Icon(Icons.Default.Check, null)
-                }
-            )
-            Divider()
-            state.currencies.keys.sorted().forEach { currency ->
-                DropdownMenuItem(
-                    text = { Text("${state.currencies[currency]} ($currency)") },
-                    onClick = {
-                        if (state.toCurrencies.size > 1 || !state.toCurrencies.contains(
-                                currency)) {
-                            viewModel.onEvent(Event.ToggleToCurrency(currency))
-                        }
                     },
                     trailingIcon = {
-                        if (state.toCurrencies.contains(currency))
-                            Icon(Icons.Default.Check, null)
+                        if (isSelected) Icon(Icons.Default.Check, null)
                     }
                 )
             }
@@ -245,7 +231,7 @@ private fun Amount(
         value = state.amount,
         onValueChange = {
             viewModel.onEvent(
-                Event.ChangeAmount(it)
+                ChangeAmount(it)
             )
         },
         label = { Text("Amount") },
@@ -288,7 +274,7 @@ private fun Date(viewModel: CurrencyViewModel) {
                             "yyyy-MM-dd", Locale.getDefault()
                         )
                             .format(Date(it))
-                        viewModel.onEvent(Event.ChangeDate(date))
+                        viewModel.onEvent(ChangeDate(date))
                     }
                     showDatePicker = false
                 }) { Text("OK") }
@@ -327,7 +313,7 @@ private fun Date(viewModel: CurrencyViewModel) {
                     datePickerState.selectedDateMillis?.let { millis ->
                         val newDate = dateFormatter.format(Date(millis))
                         selectedDate = newDate
-                        viewModel.onEvent(Event.ChangeDate(newDate))
+                        viewModel.onEvent(ChangeDate(newDate))
                     }
                     showDatePicker = false
                 }) { Text("OK") }

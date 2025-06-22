@@ -1,4 +1,4 @@
-package com.vokinchul.currencyconverter.domain.entity
+package com.vokinchul.currencyconverter.data.model
 
 data class LatestRatesResponse(
     val amount: Double,

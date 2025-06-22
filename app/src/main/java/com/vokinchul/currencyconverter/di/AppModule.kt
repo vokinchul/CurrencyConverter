@@ -1,8 +1,9 @@
 package com.vokinchul.currencyconverter.di
 
 import com.vokinchul.currencyconverter.data.api.FrankfurterApi
-import com.vokinchul.currencyconverter.data.repository.CurrencyRepositoryImpl
+import com.vokinchul.currencyconverter.data.repository.RemoteCurrencyRepository
 import com.vokinchul.currencyconverter.domain.repository.CurrencyRepository
+import com.vokinchul.currencyconverter.domain.usecase.GetAvailableCurrenciesUseCase
 import com.vokinchul.currencyconverter.ui.viewModel.CurrencyViewModel
 import org.koin.core.module.dsl.viewModel
 import org.koin.dsl.module
@@ -18,7 +19,14 @@ val appModule = module {
             .create(FrankfurterApi::class.java)
     }
 
-    single<CurrencyRepository> { CurrencyRepositoryImpl(get()) }
+    single<CurrencyRepository> { RemoteCurrencyRepository(get()) }
 
-    viewModel { CurrencyViewModel(get()) }
+    single { GetAvailableCurrenciesUseCase(get()) }
+
+    viewModel {
+        CurrencyViewModel(
+            repository = get(),
+            getCurrenciesUseCase = get()
+        )
+    }
 }
