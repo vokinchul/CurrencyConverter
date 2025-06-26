@@ -37,15 +37,20 @@ android {
     buildFeatures {
         compose = true
     }
+    composeOptions {
+        kotlinCompilerExtensionVersion = "1.8.3"
+    }
 }
 
 dependencies {
     implementation(libs.koin.android)
     implementation(libs.koin.androidx.compose)
-
+    implementation (libs.androidx.foundation)
     implementation(libs.gson)
     implementation(libs.retrofit)
     implementation(libs.converter.gson)
+    implementation (libs.ui)
+    implementation(libs.androidx.navigation.compose)
 
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)

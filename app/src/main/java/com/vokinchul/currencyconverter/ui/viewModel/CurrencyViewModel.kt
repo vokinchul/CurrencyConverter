@@ -11,11 +11,14 @@ import com.vokinchul.currencyconverter.ui.feature.ChangeFromCurrency
 import com.vokinchul.currencyconverter.ui.feature.Effect
 import com.vokinchul.currencyconverter.ui.feature.Event
 import com.vokinchul.currencyconverter.ui.feature.LoadCurrencies
+import com.vokinchul.currencyconverter.ui.feature.NavigateToResults
+import com.vokinchul.currencyconverter.ui.feature.NavigateToResultsEffect
 import com.vokinchul.currencyconverter.ui.feature.ReplaceSelectedCurrencies
 import com.vokinchul.currencyconverter.ui.feature.ShowError
 import com.vokinchul.currencyconverter.ui.feature.State
 import com.vokinchul.currencyconverter.ui.feature.ToggleAllCurrencies
 import com.vokinchul.currencyconverter.ui.feature.ToggleToCurrency
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -25,6 +28,7 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 class CurrencyViewModel(
     private val repository: CurrencyRepository,
@@ -38,14 +42,15 @@ class CurrencyViewModel(
     val effect: Flow<Effect> = _effect.receiveAsFlow()
 
     init {
-        onEvent(LoadCurrencies)
         viewModelScope.launch {
+            onEvent(LoadCurrencies)
             state
                 .map { it.currencies }
                 .distinctUntilChanged()
                 .collect { currencies ->
                     if (currencies.isNotEmpty() && state.value.toCurrencies.isEmpty()) {
                         updateState { copy(toCurrencies = currencies.keys.toSet()) }
+                        loadRates(state.value.selectedDate)
                     }
                 }
         }
@@ -53,9 +58,15 @@ class CurrencyViewModel(
 
     fun onEvent(event: Event) {
         when (event) {
+            is NavigateToResults -> {
+                viewModelScope.launch {
+                    loadRates(state.value.selectedDate)
+                    _effect.send(NavigateToResultsEffect)
+                }
+            }
+
             is ChangeFromCurrency -> {
                 updateState { copy(fromCurrency = event.currency) }
-                loadRates(state.value.selectedDate)
             }
 
             is ReplaceSelectedCurrencies -> {
@@ -100,14 +111,16 @@ class CurrencyViewModel(
 
     private fun loadRates(date: String) {
         if (_state.value.toCurrencies.isEmpty()) return
-        viewModelScope.launch {
+        viewModelScope.launch(Dispatchers.IO) {
             updateState { copy(isLoading = true, error = null) }
             try {
-                val rates = GetHistoricalRatesUseCase(repository).invoke(
-                    date = date,
-                    baseCurrency = _state.value.fromCurrency,
-                    targetCurrencies = _state.value.toCurrencies.toList()
-                )
+                val rates = withContext(Dispatchers.Main) {
+                    GetHistoricalRatesUseCase(repository).invoke(
+                        date = date,
+                        baseCurrency = _state.value.fromCurrency,
+                        targetCurrencies = _state.value.toCurrencies.toList()
+                    )
+                }
                 updateState { copy(rates = rates) }
             } catch (e: Exception) {
                 _effect.send(ShowError(e.message ?: "Unknown error"))
