@@ -49,17 +49,18 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.vokinchul.currencyconverter.ui.feature.ChangeAmount
-import com.vokinchul.currencyconverter.ui.feature.ChangeDate
-import com.vokinchul.currencyconverter.ui.feature.ChangeFromCurrency
-import com.vokinchul.currencyconverter.ui.feature.NavigateToResults
-import com.vokinchul.currencyconverter.ui.feature.NavigateToResultsEffect
-import com.vokinchul.currencyconverter.ui.feature.ReplaceSelectedCurrencies
-import com.vokinchul.currencyconverter.ui.feature.ShowError
-import com.vokinchul.currencyconverter.ui.feature.State
-import com.vokinchul.currencyconverter.ui.feature.ToggleAllCurrencies
-import com.vokinchul.currencyconverter.ui.feature.ToggleToCurrency
+import com.vokinchul.currencyconverter.ui.feature.currencyselection.ChangeAmount
+import com.vokinchul.currencyconverter.ui.feature.currencyselection.ChangeDate
+import com.vokinchul.currencyconverter.ui.feature.currencyselection.ChangeFromCurrency
+import com.vokinchul.currencyconverter.ui.feature.currencyselection.CurrencySelectionState
+import com.vokinchul.currencyconverter.ui.feature.currencyselection.NavigateToResults
+import com.vokinchul.currencyconverter.ui.feature.currencyselection.NavigateToResultsEffect
+import com.vokinchul.currencyconverter.ui.feature.currencyselection.ReplaceSelectedCurrencies
+import com.vokinchul.currencyconverter.ui.feature.currencyselection.ShowError
+import com.vokinchul.currencyconverter.ui.feature.currencyselection.ToggleAllCurrencies
+import com.vokinchul.currencyconverter.ui.feature.currencyselection.ToggleToCurrency
 import com.vokinchul.currencyconverter.ui.viewModel.CurrencyViewModel
+import kotlinx.coroutines.delay
 import org.koin.androidx.compose.koinViewModel
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -70,9 +71,9 @@ import java.util.TimeZone
 @Composable
 fun CurrencyScreen(
     viewModel: CurrencyViewModel = koinViewModel(),
-    onNavigateToResults: () -> Unit
+    onNavigateToResults: (String, Set<String>, String, String) -> Unit
 ) {
-    val state by viewModel.state.collectAsStateWithLifecycle()
+    val state by viewModel.currencySelectionState.collectAsStateWithLifecycle()
     val context = LocalContext.current
 
     LaunchedEffect(Unit) {
@@ -82,7 +83,14 @@ fun CurrencyScreen(
                     Toast.makeText(context, effect.message, Toast.LENGTH_SHORT).show()
                 }
 
-                is NavigateToResultsEffect -> onNavigateToResults()
+                is NavigateToResultsEffect -> {
+                    onNavigateToResults(
+                        effect.fromCurrency,
+                        effect.toCurrencies,
+                        effect.amount,
+                        effect.date
+                    )
+                }
             }
         }
     }
@@ -113,7 +121,7 @@ fun CurrencyScreen(
 
         ButtonConvert(
             onClick = { viewModel.onEvent(NavigateToResults) },
-            enabled = state.rates.isNotEmpty()
+            enabled = state.toCurrencies.isNotEmpty()
         )
     }
 }
@@ -121,13 +129,14 @@ fun CurrencyScreen(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun CurrencyView(
-    state: State,
+    currencySelectionState: CurrencySelectionState,
     viewModel: CurrencyViewModel,
     fromCurrency: Boolean
 ) {
     var expanded by remember { mutableStateOf(false) }
     val focusManager = LocalFocusManager.current
-    val allSelected = state.toCurrencies.size == state.currencies.size
+    val allSelected =
+        currencySelectionState.toCurrencies.size == currencySelectionState.currencies.size
 
     ExposedDropdownMenuBox(
         expanded = expanded,
@@ -142,11 +151,13 @@ private fun CurrencyView(
                 ),
             readOnly = true,
             value = when {
-                fromCurrency -> state.currencies[state.fromCurrency] ?: state.fromCurrency
+                fromCurrency -> currencySelectionState.currencies[currencySelectionState.fromCurrency]
+                    ?: currencySelectionState.fromCurrency
+
                 allSelected -> "All currencies"
-                state.toCurrencies.isEmpty() -> "No currencies selected"
-                else -> state.toCurrencies.joinToString {
-                    state.currencies[it] ?: it
+                currencySelectionState.toCurrencies.isEmpty() -> "No currencies selected"
+                else -> currencySelectionState.toCurrencies.joinToString {
+                    currencySelectionState.currencies[it] ?: it
                 }
             },
             onValueChange = {},
@@ -175,14 +186,14 @@ private fun CurrencyView(
                 Divider()
             }
 
-            state.currencies.keys.sorted().forEach { currency ->
-                val isSelected = if (fromCurrency) state.fromCurrency == currency
-                else state.toCurrencies.contains(currency)
+            currencySelectionState.currencies.keys.sorted().forEach { currency ->
+                val isSelected = if (fromCurrency) currencySelectionState.fromCurrency == currency
+                else currencySelectionState.toCurrencies.contains(currency)
 
                 DropdownMenuItem(
                     text = {
                         Text(
-                            "${state.currencies[currency] ?: currency} ($currency)",
+                            "${currencySelectionState.currencies[currency] ?: currency} ($currency)",
                             modifier = Modifier.fillMaxWidth()
                         )
                     },
@@ -199,7 +210,7 @@ private fun CurrencyView(
                                     )
                                 }
 
-                                state.toCurrencies.size == 1 && isSelected -> {
+                                currencySelectionState.toCurrencies.size == 1 && isSelected -> {
                                     viewModel.onEvent(ToggleAllCurrencies(selectAll = true))
                                 }
 
@@ -222,14 +233,14 @@ private fun CurrencyView(
 
 @Composable
 private fun Amount(
-    state: State,
+    currencySelectionState: CurrencySelectionState,
     viewModel: CurrencyViewModel
 ) {
     val keyboardController = LocalSoftwareKeyboardController.current
     val focusManager = LocalFocusManager.current
 
     OutlinedTextField(
-        value = state.amount,
+        value = currencySelectionState.amount,
         onValueChange = {
             viewModel.onEvent(
                 ChangeAmount(it)
@@ -254,7 +265,7 @@ private fun Amount(
 @Composable
 @OptIn(ExperimentalMaterial3Api::class)
 private fun DatePicker(viewModel: CurrencyViewModel) {
-    val state by viewModel.state.collectAsState()
+    val state by viewModel.currencySelectionState.collectAsState()
     var showDatePicker by remember { mutableStateOf(false) }
 
     val dateFormatter = remember {
@@ -319,17 +330,22 @@ fun ButtonConvert(
     onClick: () -> Unit,
     enabled: Boolean
 ) {
+    var isClicked by remember { mutableStateOf(false) }
     Column(
-        modifier = Modifier
-            .fillMaxSize(),
+        modifier = Modifier.fillMaxSize(),
         verticalArrangement = Arrangement.Bottom
     ) {
         Button(
-            onClick = onClick,
+            onClick = {
+                if (!isClicked) {
+                    isClicked = true
+                    onClick()
+                }
+            },
             modifier = Modifier
                 .fillMaxWidth()
                 .height(56.dp),
-            enabled = enabled,
+            enabled = enabled && !isClicked,
             shape = RoundedCornerShape(8.dp),
             elevation = ButtonDefaults.buttonElevation(
                 defaultElevation = 8.dp,
@@ -340,6 +356,12 @@ fun ButtonConvert(
                 text = "Convert",
                 style = MaterialTheme.typography.labelLarge
             )
+        }
+    }
+    LaunchedEffect(isClicked) {
+        if (isClicked) {
+            delay(1000)
+            isClicked = false
         }
     }
 }

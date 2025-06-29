@@ -1,4 +1,4 @@
-package com.vokinchul.currencyconverter.ui.feature
+package com.vokinchul.currencyconverter.ui.feature.currencyselection
 
 sealed class Event
 data class ChangeFromCurrency(val currency: String) : Event()

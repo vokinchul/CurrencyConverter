@@ -5,6 +5,7 @@ import com.vokinchul.currencyconverter.data.repository.RemoteCurrencyRepository
 import com.vokinchul.currencyconverter.domain.repository.CurrencyRepository
 import com.vokinchul.currencyconverter.domain.usecase.GetAvailableCurrenciesUseCase
 import com.vokinchul.currencyconverter.ui.viewModel.CurrencyViewModel
+import com.vokinchul.currencyconverter.ui.viewModel.ResultsViewModel
 import org.koin.core.module.dsl.viewModel
 import org.koin.dsl.module
 import retrofit2.Retrofit
@@ -23,10 +24,6 @@ val appModule = module {
 
     single { GetAvailableCurrenciesUseCase(get()) }
 
-    viewModel {
-        CurrencyViewModel(
-            repository = get(),
-            getCurrenciesUseCase = get()
-        )
-    }
+    viewModel { CurrencyViewModel(get()) }
+    viewModel { ResultsViewModel(get(), get()) }
 }

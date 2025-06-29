@@ -7,14 +7,17 @@ import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.Surface
 import androidx.compose.ui.Modifier
+import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
-import com.vokinchul.currencyconverter.ui.feature.Screens
+import androidx.navigation.navArgument
+import com.vokinchul.currencyconverter.ui.navigation.Screens
 import com.vokinchul.currencyconverter.ui.screens.CurrencyScreen
 import com.vokinchul.currencyconverter.ui.screens.ResultsScreen
 import com.vokinchul.currencyconverter.ui.theme.CurrencyConverterTheme
 import com.vokinchul.currencyconverter.ui.viewModel.CurrencyViewModel
+import com.vokinchul.currencyconverter.ui.viewModel.ResultsViewModel
 import org.koin.androidx.compose.koinViewModel
 
 class MainActivity : ComponentActivity() {
@@ -22,7 +25,6 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent {
-            val viewModel: CurrencyViewModel = koinViewModel()
             CurrencyConverterTheme {
                 Surface(
                     modifier = Modifier.fillMaxSize()
@@ -34,15 +36,30 @@ class MainActivity : ComponentActivity() {
                     ) {
                         composable(Screens.MainScreen.name) {
                             CurrencyScreen(
-                                viewModel,
-                                onNavigateToResults = {
-                                    navController.navigate(Screens.ResultsScreen.name)
+                                viewModel = koinViewModel<CurrencyViewModel>(),
+                                onNavigateToResults = { fromCurrency, toCurrencies, amount, date ->
+                                    val toCurrenciesStr = toCurrencies.joinToString(",")
+                                    navController.navigate(
+                                        "${
+                                            Screens.ResultsScreen.name
+                                        }/$fromCurrency/$toCurrenciesStr/$amount/$date"
+                                    )
                                 }
                             )
                         }
-                        composable(Screens.ResultsScreen.name) {
+                        composable(
+                            route = "${
+                                Screens.ResultsScreen.name
+                            }/{fromCurrency}/{toCurrencies}/{amount}/{date}",
+                            arguments = listOf(
+                                navArgument("fromCurrency") { type = NavType.StringType },
+                                navArgument("toCurrencies") { type = NavType.StringType },
+                                navArgument("amount") { type = NavType.StringType },
+                                navArgument("date") { type = NavType.StringType }
+                            )
+                        ) { backStackEntry ->
                             ResultsScreen(
-                                viewModel,
+                                viewModel = koinViewModel<ResultsViewModel>(),
                                 onBack = { navController.popBackStack() }
                             )
                         }

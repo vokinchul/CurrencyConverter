@@ -2,84 +2,48 @@ package com.vokinchul.currencyconverter.ui.viewModel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.vokinchul.currencyconverter.domain.repository.CurrencyRepository
 import com.vokinchul.currencyconverter.domain.usecase.GetAvailableCurrenciesUseCase
-import com.vokinchul.currencyconverter.domain.usecase.GetHistoricalRatesUseCase
-import com.vokinchul.currencyconverter.ui.feature.ChangeAmount
-import com.vokinchul.currencyconverter.ui.feature.ChangeDate
-import com.vokinchul.currencyconverter.ui.feature.ChangeFromCurrency
-import com.vokinchul.currencyconverter.ui.feature.Effect
-import com.vokinchul.currencyconverter.ui.feature.Event
-import com.vokinchul.currencyconverter.ui.feature.LoadCurrencies
-import com.vokinchul.currencyconverter.ui.feature.NavigateToResults
-import com.vokinchul.currencyconverter.ui.feature.NavigateToResultsEffect
-import com.vokinchul.currencyconverter.ui.feature.ReplaceSelectedCurrencies
-import com.vokinchul.currencyconverter.ui.feature.ShowError
-import com.vokinchul.currencyconverter.ui.feature.State
-import com.vokinchul.currencyconverter.ui.feature.ToggleAllCurrencies
-import com.vokinchul.currencyconverter.ui.feature.ToggleToCurrency
+import com.vokinchul.currencyconverter.ui.feature.currencyselection.ChangeAmount
+import com.vokinchul.currencyconverter.ui.feature.currencyselection.ChangeDate
+import com.vokinchul.currencyconverter.ui.feature.currencyselection.ChangeFromCurrency
+import com.vokinchul.currencyconverter.ui.feature.currencyselection.CurrencySelectionEffect
+import com.vokinchul.currencyconverter.ui.feature.currencyselection.Event
+import com.vokinchul.currencyconverter.ui.feature.currencyselection.CurrencySelectionState
+import com.vokinchul.currencyconverter.ui.feature.currencyselection.LoadCurrencies
+import com.vokinchul.currencyconverter.ui.feature.currencyselection.NavigateToResults
+import com.vokinchul.currencyconverter.ui.feature.currencyselection.NavigateToResultsEffect
+import com.vokinchul.currencyconverter.ui.feature.currencyselection.ReplaceSelectedCurrencies
+import com.vokinchul.currencyconverter.ui.feature.currencyselection.ShowError
+import com.vokinchul.currencyconverter.ui.feature.currencyselection.ToggleAllCurrencies
+import com.vokinchul.currencyconverter.ui.feature.currencyselection.ToggleToCurrency
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.distinctUntilChanged
-import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 class CurrencyViewModel(
-    private val repository: CurrencyRepository,
     private val getCurrenciesUseCase: GetAvailableCurrenciesUseCase
 ) : ViewModel() {
 
-    private val _state = MutableStateFlow(State())
-    val state: StateFlow<State> = _state
+    private val _currencySelectionState = MutableStateFlow(CurrencySelectionState())
+    val currencySelectionState: StateFlow<CurrencySelectionState> = _currencySelectionState
 
-    private val _effect = Channel<Effect>()
-    val effect: Flow<Effect> = _effect.receiveAsFlow()
+    private val _effect = Channel<CurrencySelectionEffect>()
+    val effect: Flow<CurrencySelectionEffect> = _effect.receiveAsFlow()
 
     init {
-        viewModelScope.launch {
-            onEvent(LoadCurrencies)
-            state
-                .map { it.currencies }
-                .distinctUntilChanged()
-                .collect { currencies ->
-                    if (currencies.isNotEmpty() && state.value.toCurrencies.isEmpty()) {
-                        updateState { copy(toCurrencies = currencies.keys.toSet()) }
-                        loadRates(state.value.selectedDate)
-                    }
-                }
-        }
+        loadAvailableCurrencies()
     }
 
     fun onEvent(event: Event) {
         when (event) {
-            is NavigateToResults -> {
-                viewModelScope.launch {
-                    loadRates(state.value.selectedDate)
-                    _effect.send(NavigateToResultsEffect)
-                }
-            }
-
             is ChangeFromCurrency -> {
                 updateState { copy(fromCurrency = event.currency) }
-            }
-
-            is ReplaceSelectedCurrencies -> {
-                updateState { copy(toCurrencies = event.currencies) }
-            }
-
-            is ToggleAllCurrencies -> {
-                updateState {
-                    copy(
-                        toCurrencies = if (event.selectAll) currencies.keys.toSet()
-                        else toCurrencies
-                    )
-                }
             }
 
             is ToggleToCurrency -> {
@@ -93,13 +57,47 @@ class CurrencyViewModel(
                 }
             }
 
+            is ToggleAllCurrencies -> {
+                updateState {
+                    copy(
+                        toCurrencies = if (event.selectAll) currencies.keys.toSet()
+                        else emptySet()
+                    )
+                }
+            }
+
+            is ReplaceSelectedCurrencies -> {
+                updateState { copy(toCurrencies = event.currencies) }
+            }
+
             is ChangeAmount -> {
                 updateState { copy(amount = event.amount) }
             }
 
             is ChangeDate -> {
                 updateState { copy(selectedDate = event.date) }
-                loadRates(event.date)
+            }
+
+            is NavigateToResults -> {
+                viewModelScope.launch {
+                    if (currencySelectionState.value.toCurrencies.isNotEmpty()) {
+                        _effect.send(
+                            NavigateToResultsEffect(
+                                fromCurrency = currencySelectionState.value.fromCurrency,
+                                toCurrencies = currencySelectionState.value.toCurrencies,
+                                amount = currencySelectionState.value.amount,
+                                date = currencySelectionState.value.selectedDate
+                            )
+                        )
+                    } else {
+                        _effect.send(
+                            ShowError(
+                                "Пожалуйста, " +
+                                        "выберите хотя бы одну целевую валюту"
+                            )
+                        )
+                    }
+                }
             }
 
             LoadCurrencies -> {
@@ -108,48 +106,34 @@ class CurrencyViewModel(
         }
     }
 
-
-    private fun loadRates(date: String) {
-        if (_state.value.toCurrencies.isEmpty()) return
-        viewModelScope.launch(Dispatchers.IO) {
-            updateState { copy(isLoading = true, error = null) }
-            try {
-                val rates = withContext(Dispatchers.Main) {
-                    GetHistoricalRatesUseCase(repository).invoke(
-                        date = date,
-                        baseCurrency = _state.value.fromCurrency,
-                        targetCurrencies = _state.value.toCurrencies.toList()
-                    )
-                }
-                updateState { copy(rates = rates) }
-            } catch (e: Exception) {
-                _effect.send(ShowError(e.message ?: "Unknown error"))
-                updateState { copy(error = e.message) }
-            } finally {
-                updateState { copy(isLoading = false) }
-            }
-        }
-    }
-
     private fun loadAvailableCurrencies() {
-        viewModelScope.launch {
-            updateState { copy(isLoading = true) }
+        viewModelScope.launch(Dispatchers.IO) {
+            withContext(Dispatchers.Main) {
+                updateState { copy(isLoading = true) }
+            }
             try {
                 val currencies = getCurrenciesUseCase.invoke()
-                updateState { copy(currencies = currencies) }
+                withContext(Dispatchers.Main) {
+                    updateState {
+                        copy(
+                            currencies = currencies,
+                            toCurrencies = currencies.keys.toSet()
+                        )
+                    }
+                }
             } catch (e: Exception) {
-                _effect.send(
-                    ShowError(
-                        e.message ?: "Failed to load currencies"
-                    )
-                )
+                withContext(Dispatchers.Main) {
+                    _effect.send(ShowError(e.message ?: "Не удалось загрузить валюты"))
+                }
             } finally {
-                updateState { copy(isLoading = false) }
+                withContext(Dispatchers.Main) {
+                    updateState { copy(isLoading = false) }
+                }
             }
         }
     }
 
-    private inline fun updateState(transform: State.() -> State) {
-        _state.update(transform)
+    private inline fun updateState(transform: CurrencySelectionState.() -> CurrencySelectionState) {
+        _currencySelectionState.update(transform)
     }
 }

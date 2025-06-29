@@ -1,5 +1,6 @@
 package com.vokinchul.currencyconverter.ui.screens
 
+import android.widget.Toast
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -20,25 +21,41 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.vokinchul.currencyconverter.domain.model.CurrencyRate
-import com.vokinchul.currencyconverter.ui.viewModel.CurrencyViewModel
+import com.vokinchul.currencyconverter.ui.feature.result.ShowErrorResults
+import com.vokinchul.currencyconverter.ui.viewModel.ResultsViewModel
+import org.koin.androidx.compose.koinViewModel
 import java.text.SimpleDateFormat
 import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ResultsScreen(
-    viewModel: CurrencyViewModel,
+    viewModel: ResultsViewModel = koinViewModel(),
     onBack: () -> Unit
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    val context = LocalContext.current
+
+    LaunchedEffect(Unit) {
+        viewModel.effect.collect { effect ->
+            when (effect) {
+                is ShowErrorResults -> {
+                    Toast.makeText(context, effect.message, Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+    }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -154,7 +171,6 @@ fun ButtonBack(
 @Composable
 private fun InfoRow(label: String, value: String, isDate: Boolean = false) {
     val formattedValue = remember(value, isDate) {
-
         if (isDate) {
             try {
                 SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())

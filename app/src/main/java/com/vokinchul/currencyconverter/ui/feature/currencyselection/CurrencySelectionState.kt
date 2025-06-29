@@ -1,11 +1,11 @@
-package com.vokinchul.currencyconverter.ui.feature
+package com.vokinchul.currencyconverter.ui.feature.currencyselection
 
 import com.vokinchul.currencyconverter.domain.model.CurrencyRate
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
-data class State(
+data class CurrencySelectionState(
     val fromCurrency: String = "EUR",
     val toCurrencies: Set<String> = emptySet(),
     val amount: String = "1",
