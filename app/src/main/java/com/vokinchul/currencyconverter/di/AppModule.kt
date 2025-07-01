@@ -4,6 +4,7 @@ import com.vokinchul.currencyconverter.data.api.FrankfurterApi
 import com.vokinchul.currencyconverter.data.repository.RemoteCurrencyRepository
 import com.vokinchul.currencyconverter.domain.repository.CurrencyRepository
 import com.vokinchul.currencyconverter.domain.usecase.GetAvailableCurrenciesUseCase
+import com.vokinchul.currencyconverter.domain.usecase.GetHistoricalRatesUseCase
 import com.vokinchul.currencyconverter.ui.viewModel.CurrencySelectionViewModel
 import com.vokinchul.currencyconverter.ui.viewModel.ResultsViewModel
 import org.koin.core.module.dsl.viewModel
@@ -21,9 +22,8 @@ val appModule = module {
     }
 
     single<CurrencyRepository> { RemoteCurrencyRepository(get()) }
-
     single { GetAvailableCurrenciesUseCase(get()) }
-
+    single { GetHistoricalRatesUseCase(get()) }
     viewModel { CurrencySelectionViewModel(get()) }
     viewModel { ResultsViewModel(get(), get()) }
 }

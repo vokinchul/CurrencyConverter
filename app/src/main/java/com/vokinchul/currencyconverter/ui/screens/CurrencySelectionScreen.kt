@@ -18,6 +18,7 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.Divider
@@ -40,12 +41,14 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -54,6 +57,7 @@ import com.vokinchul.currencyconverter.ui.feature.currencyselection.ChangeDate
 import com.vokinchul.currencyconverter.ui.feature.currencyselection.ChangeFromCurrency
 import com.vokinchul.currencyconverter.ui.feature.currencyselection.CurrencySelectionEvent
 import com.vokinchul.currencyconverter.ui.feature.currencyselection.CurrencySelectionState
+import com.vokinchul.currencyconverter.ui.feature.currencyselection.LoadCurrencies
 import com.vokinchul.currencyconverter.ui.feature.currencyselection.NavigateToResults
 import com.vokinchul.currencyconverter.ui.feature.currencyselection.NavigateToResultsEffect
 import com.vokinchul.currencyconverter.ui.feature.currencyselection.ReplaceSelectedCurrencies
@@ -133,28 +137,55 @@ fun CurrencyScreenContent(
             .padding(16.dp)
             .systemBarsPadding()
     ) {
-        TopAppBar(
-            title = { Text("Currency Converter") },
-        )
+        when {
+            state.isLoading -> {
+                CircularProgressIndicator(
+                    modifier = Modifier.align(
+                        Alignment.CenterHorizontally
+                    )
+                )
+            }
 
-        CurrencyView(state, onEvent, fromCurrency = true)
+            state.error != null -> {
+                Column(
+                    modifier = Modifier.align(Alignment.CenterHorizontally),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Text(
+                        text = state.error,
+                        color = MaterialTheme.colorScheme.error,
+                        textAlign = TextAlign.Center,
+                        style = MaterialTheme.typography.bodyLarge
+                    )
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Button(
+                        onClick = { onEvent(LoadCurrencies) },
+                        shape = RoundedCornerShape(8.dp)
+                    ) {
+                        Text("Повторить")
+                    }
+                }
+            }
 
-        Spacer(modifier = Modifier.height(16.dp))
-
-        CurrencyView(state, onEvent, fromCurrency = false)
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        Amount(state, onEvent)
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        DatePicker(state, onEvent)
-
-        ButtonConvert(
-            onClick = { onEvent(NavigateToResults) },
-            enabled = state.toCurrencies.isNotEmpty()
-        )
+            else -> {
+                Column {
+                    TopAppBar(
+                        title = { Text("Currency Converter") },
+                    )
+                    CurrencyView(state, onEvent, fromCurrency = true)
+                    Spacer(modifier = Modifier.height(16.dp))
+                    CurrencyView(state, onEvent, fromCurrency = false)
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Amount(state, onEvent)
+                    Spacer(modifier = Modifier.height(16.dp))
+                    DatePicker(state, onEvent)
+                    ButtonConvert(
+                        onClick = { onEvent(NavigateToResults) },
+                        enabled = state.toCurrencies.isNotEmpty()
+                    )
+                }
+            }
+        }
     }
 }
 
@@ -212,7 +243,10 @@ private fun CurrencyView(
                         expanded = false
                     },
                     trailingIcon = {
-                        if (allSelected) Icon(Icons.Default.Check, null)
+                        if (allSelected) Icon(
+                            Icons.Default.Check,
+                            null
+                        )
                     }
                 )
                 Divider()
@@ -255,7 +289,10 @@ private fun CurrencyView(
                         focusManager.clearFocus()
                     },
                     trailingIcon = {
-                        if (isSelected) Icon(Icons.Default.Check, null)
+                        if (isSelected) Icon(
+                            Icons.Default.Check,
+                            null
+                        )
                     }
                 )
             }

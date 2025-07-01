@@ -3,10 +3,15 @@ package com.vokinchul.currencyconverter.ui.viewModel
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.vokinchul.currencyconverter.core.Result.Error
+import com.vokinchul.currencyconverter.core.Result.Loading
+import com.vokinchul.currencyconverter.core.Result.Success
 import com.vokinchul.currencyconverter.domain.repository.CurrencyRepository
 import com.vokinchul.currencyconverter.domain.usecase.GetHistoricalRatesUseCase
 import com.vokinchul.currencyconverter.ui.feature.result.ResultsEffect
+import com.vokinchul.currencyconverter.ui.feature.result.ResultsEvent
 import com.vokinchul.currencyconverter.ui.feature.result.ResultsState
+import com.vokinchul.currencyconverter.ui.feature.result.RetryLoadRates
 import com.vokinchul.currencyconverter.ui.feature.result.ShowErrorResults
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.Channel
@@ -53,27 +58,24 @@ class ResultsViewModel(
             withContext(Dispatchers.Main) {
                 updateState { copy(isLoading = true, error = null) }
             }
-            try {
-                val rates = GetHistoricalRatesUseCase(repository).invoke(
-                    date = date,
-                    baseCurrency = baseCurrency,
-                    targetCurrencies = targetCurrencies.toList()
-                )
-                withContext(Dispatchers.Main) {
-                    updateState { copy(rates = rates) }
-                }
-            } catch (e: Exception) {
-                withContext(Dispatchers.Main) {
-                    _effect.send(
-                        ShowErrorResults(
-                            e.message ?: "Неизвестная ошибка"
-                        )
-                    )
-                    updateState { copy(error = e.message) }
-                }
-            } finally {
-                withContext(Dispatchers.Main) {
-                    updateState { copy(isLoading = false) }
+            val result = GetHistoricalRatesUseCase(repository).invoke(
+                date = date,
+                baseCurrency = baseCurrency,
+                targetCurrencies = targetCurrencies.toList()
+            )
+            withContext(Dispatchers.Main) {
+                when (result) {
+                    is Success -> {
+                        updateState { copy(rates = result.data, isLoading = false, error = null) }
+                    }
+
+                    is Error -> {
+                        _effect.send(ShowErrorResults(result.message))
+                        updateState { copy(isLoading = false, error = result.message) }
+                    }
+
+                    is Loading -> {
+                    }
                 }
             }
         }
@@ -81,5 +83,17 @@ class ResultsViewModel(
 
     private inline fun updateState(transform: ResultsState.() -> ResultsState) {
         _state.update(transform)
+    }
+
+    fun onEvent(event: ResultsEvent) {
+        when (event) {
+            is RetryLoadRates -> {
+                loadRates(
+                    state.value.selectedDate,
+                    state.value.fromCurrency,
+                    state.value.toCurrencies
+                )
+            }
+        }
     }
 }

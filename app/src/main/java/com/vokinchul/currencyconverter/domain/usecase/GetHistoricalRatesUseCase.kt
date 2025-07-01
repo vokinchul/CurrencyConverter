@@ -1,5 +1,6 @@
 package com.vokinchul.currencyconverter.domain.usecase
 
+import com.vokinchul.currencyconverter.core.Result
 import com.vokinchul.currencyconverter.domain.model.CurrencyRate
 import com.vokinchul.currencyconverter.domain.repository.CurrencyRepository
 
@@ -10,7 +11,7 @@ class GetHistoricalRatesUseCase(
         date: String,
         baseCurrency: String,
         targetCurrencies: List<String>
-    ): List<CurrencyRate> {
+    ): Result<List<CurrencyRate>> {
         return repository.getHistoricalRates(
             date, baseCurrency, targetCurrencies
         )

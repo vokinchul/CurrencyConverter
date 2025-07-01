@@ -2,6 +2,9 @@ package com.vokinchul.currencyconverter.ui.viewModel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.vokinchul.currencyconverter.core.Result.Error
+import com.vokinchul.currencyconverter.core.Result.Loading
+import com.vokinchul.currencyconverter.core.Result.Success
 import com.vokinchul.currencyconverter.domain.usecase.GetAvailableCurrenciesUseCase
 import com.vokinchul.currencyconverter.ui.feature.currencyselection.ChangeAmount
 import com.vokinchul.currencyconverter.ui.feature.currencyselection.ChangeDate
@@ -109,25 +112,29 @@ class CurrencySelectionViewModel(
     private fun loadAvailableCurrencies() {
         viewModelScope.launch(Dispatchers.IO) {
             withContext(Dispatchers.Main) {
-                updateState { copy(isLoading = true) }
+                updateState { copy(isLoading = true, error = null) }
             }
-            try {
-                val currencies = getCurrenciesUseCase.invoke()
-                withContext(Dispatchers.Main) {
-                    updateState {
-                        copy(
-                            currencies = currencies,
-                            toCurrencies = currencies.keys.toSet()
-                        )
+            val result = getCurrenciesUseCase.invoke()
+            withContext(Dispatchers.Main) {
+                when (result) {
+                    is Success -> {
+                        updateState {
+                            copy(
+                                currencies = result.data,
+                                toCurrencies = result.data.keys.toSet(),
+                                isLoading = false,
+                                error = null
+                            )
+                        }
                     }
-                }
-            } catch (e: Exception) {
-                withContext(Dispatchers.Main) {
-                    _effect.send(ShowError(e.message ?: "Не удалось загрузить валюты"))
-                }
-            } finally {
-                withContext(Dispatchers.Main) {
-                    updateState { copy(isLoading = false) }
+
+                    is Error -> {
+                        _effect.send(ShowError(result.message))
+                        updateState { copy(isLoading = false, error = result.message) }
+                    }
+
+                    is Loading -> {
+                    }
                 }
             }
         }

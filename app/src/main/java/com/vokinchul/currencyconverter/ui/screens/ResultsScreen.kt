@@ -16,6 +16,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -32,7 +33,9 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.vokinchul.currencyconverter.domain.model.CurrencyRate
+import com.vokinchul.currencyconverter.ui.feature.result.ResultsEvent
 import com.vokinchul.currencyconverter.ui.feature.result.ResultsState
+import com.vokinchul.currencyconverter.ui.feature.result.RetryLoadRates
 import com.vokinchul.currencyconverter.ui.feature.result.ShowErrorResults
 import com.vokinchul.currencyconverter.ui.viewModel.ResultsViewModel
 import org.koin.androidx.compose.koinViewModel
@@ -53,7 +56,8 @@ fun ResultsScreenContentPreview() {
                 CurrencyRate(currency = "GBP", rate = 0.73)
             )
         ),
-        onBack = {}
+        onBack = {},
+        onEvent = {}
     )
 }
 
@@ -77,6 +81,33 @@ fun ResultsScreen(
     }
     ResultsScreenContent(
         state = state,
+        onEvent = viewModel::onEvent,
+        onBack = onBack
+    )
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun ResultsScreen(
+    viewModel: ResultsViewModel = koinViewModel(),
+    onEvent: (ResultsEvent) -> Unit,
+    onBack: () -> Unit
+) {
+    val state by viewModel.state.collectAsStateWithLifecycle()
+    val context = LocalContext.current
+
+    LaunchedEffect(Unit) {
+        viewModel.effect.collect { effect ->
+            when (effect) {
+                is ShowErrorResults -> {
+                    Toast.makeText(context, effect.message, Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+    }
+    ResultsScreenContent(
+        state = state,
+        onEvent = viewModel::onEvent,
         onBack = onBack
     )
 }
@@ -85,67 +116,100 @@ fun ResultsScreen(
 @Composable
 fun ResultsScreenContent(
     state: ResultsState,
+    onEvent: (ResultsEvent) -> Unit,
     onBack: () -> Unit
 ) {
-    Column(
+    Box(
         modifier = Modifier
             .fillMaxSize()
             .padding(16.dp)
             .systemBarsPadding()
     ) {
-        TopAppBar(
-            title = { Text("Converted Results") },
-        )
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-        ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(horizontal = 16.dp)
-            ) {
-                InfoRow("From currency", state.fromCurrency)
-                InfoRow("To currencies", state.toCurrencies.joinToString())
-                InfoRow("Date", state.selectedDate, isDate = true)
+        when {
+            state.isLoading -> {
+                CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
+            }
 
-                Spacer(modifier = Modifier.height(16.dp))
-
-                if (state.rates.isNotEmpty()) {
-                    LazyColumn(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(bottom = 80.dp),
+            state.error != null -> {
+                Column(
+                    modifier = Modifier.align(Alignment.Center),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Text(
+                        text = state.error,
+                        color = MaterialTheme.colorScheme.error,
+                        textAlign = TextAlign.Center,
+                        style = MaterialTheme.typography.bodyLarge
+                    )
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Button(
+                        onClick = { onEvent(RetryLoadRates) },
+                        shape = RoundedCornerShape(8.dp)
                     ) {
-                        items(
-                            items = state.rates,
-                            key = { rate -> rate.currency }
-                        ) { rate ->
-                            RateItem(
-                                amount = state.amount,
-                                fromCurrency = state.fromCurrency,
-                                rate = rate
-                            )
-                        }
+                        Text("Повторить")
                     }
-                } else {
-                    Box(
-                        modifier = Modifier
-                            .weight(1f)
-                            .fillMaxSize(),
-                        contentAlignment = Alignment.Center
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Button(
+                        onClick = onBack,
+                        shape = RoundedCornerShape(8.dp)
                     ) {
-                        Text("No rates available")
+                        Text("Назад")
                     }
                 }
             }
 
-            ButtonBack(
-                onClick = onBack,
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .fillMaxWidth()
-            )
+            else -> {
+                Column(
+                    modifier = Modifier.fillMaxSize()
+                ) {
+                    TopAppBar(
+                        title = { Text("Converted Results") },
+                    )
+                    Column(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(horizontal = 16.dp)
+                    ) {
+                        InfoRow("From currency", state.fromCurrency)
+                        InfoRow("To currencies", state.toCurrencies.joinToString())
+                        InfoRow("Date", state.selectedDate, isDate = true)
+                        Spacer(modifier = Modifier.height(16.dp))
+                        if (state.rates.isNotEmpty()) {
+                            LazyColumn(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .padding(bottom = 80.dp),
+                            ) {
+                                items(
+                                    items = state.rates,
+                                    key = { rate -> rate.currency }
+                                ) { rate ->
+                                    RateItem(
+                                        amount = state.amount,
+                                        fromCurrency = state.fromCurrency,
+                                        rate = rate
+                                    )
+                                }
+                            }
+                        } else {
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .fillMaxSize(),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text("No rates available")
+                            }
+                        }
+                    }
+                    ButtonBack(
+                        onClick = onBack,
+                        modifier = Modifier
+                            .align(Alignment.CenterHorizontally)
+                            .fillMaxWidth()
+                    )
+                }
+            }
         }
     }
 }
