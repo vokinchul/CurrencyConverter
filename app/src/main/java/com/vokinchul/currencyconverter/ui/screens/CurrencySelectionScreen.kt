@@ -36,7 +36,6 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -47,11 +46,13 @@ import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.vokinchul.currencyconverter.ui.feature.currencyselection.ChangeAmount
 import com.vokinchul.currencyconverter.ui.feature.currencyselection.ChangeDate
 import com.vokinchul.currencyconverter.ui.feature.currencyselection.ChangeFromCurrency
+import com.vokinchul.currencyconverter.ui.feature.currencyselection.CurrencySelectionEvent
 import com.vokinchul.currencyconverter.ui.feature.currencyselection.CurrencySelectionState
 import com.vokinchul.currencyconverter.ui.feature.currencyselection.NavigateToResults
 import com.vokinchul.currencyconverter.ui.feature.currencyselection.NavigateToResultsEffect
@@ -59,7 +60,7 @@ import com.vokinchul.currencyconverter.ui.feature.currencyselection.ReplaceSelec
 import com.vokinchul.currencyconverter.ui.feature.currencyselection.ShowError
 import com.vokinchul.currencyconverter.ui.feature.currencyselection.ToggleAllCurrencies
 import com.vokinchul.currencyconverter.ui.feature.currencyselection.ToggleToCurrency
-import com.vokinchul.currencyconverter.ui.viewModel.CurrencyViewModel
+import com.vokinchul.currencyconverter.ui.viewModel.CurrencySelectionViewModel
 import kotlinx.coroutines.delay
 import org.koin.androidx.compose.koinViewModel
 import java.text.SimpleDateFormat
@@ -67,10 +68,30 @@ import java.util.Date
 import java.util.Locale
 import java.util.TimeZone
 
+@Preview(showBackground = true)
+@Composable
+fun CurrencyScreenContentPreview() {
+    CurrencyScreenContent(
+        state = CurrencySelectionState(
+            currencies = mapOf(
+                "USD" to "United States Dollar",
+                "EUR" to "Euro",
+                "GBP" to "British Pound"
+            ),
+            fromCurrency = "USD",
+            toCurrencies = setOf("EUR", "GBP"),
+            amount = "100",
+            selectedDate = "2025-06-30",
+            isLoading = false
+        ),
+        onEvent = {}
+    )
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CurrencyScreen(
-    viewModel: CurrencyViewModel = koinViewModel(),
+    viewModel: CurrencySelectionViewModel = koinViewModel(),
     onNavigateToResults: (String, Set<String>, String, String) -> Unit
 ) {
     val state by viewModel.currencySelectionState.collectAsStateWithLifecycle()
@@ -94,7 +115,18 @@ fun CurrencyScreen(
             }
         }
     }
+    CurrencyScreenContent(
+        state = state,
+        onEvent = viewModel::onEvent
+    )
+}
 
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun CurrencyScreenContent(
+    state: CurrencySelectionState,
+    onEvent: (CurrencySelectionEvent) -> Unit
+) {
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -105,22 +137,22 @@ fun CurrencyScreen(
             title = { Text("Currency Converter") },
         )
 
-        CurrencyView(state, viewModel, fromCurrency = true)
+        CurrencyView(state, onEvent, fromCurrency = true)
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        CurrencyView(state, viewModel, fromCurrency = false)
+        CurrencyView(state, onEvent, fromCurrency = false)
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        Amount(state, viewModel)
+        Amount(state, onEvent)
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        DatePicker(viewModel)
+        DatePicker(state, onEvent)
 
         ButtonConvert(
-            onClick = { viewModel.onEvent(NavigateToResults) },
+            onClick = { onEvent(NavigateToResults) },
             enabled = state.toCurrencies.isNotEmpty()
         )
     }
@@ -129,14 +161,14 @@ fun CurrencyScreen(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun CurrencyView(
-    currencySelectionState: CurrencySelectionState,
-    viewModel: CurrencyViewModel,
+    state: CurrencySelectionState,
+    onEvent: (CurrencySelectionEvent) -> Unit,
     fromCurrency: Boolean
 ) {
     var expanded by remember { mutableStateOf(false) }
     val focusManager = LocalFocusManager.current
     val allSelected =
-        currencySelectionState.toCurrencies.size == currencySelectionState.currencies.size
+        state.toCurrencies.size == state.currencies.size
 
     ExposedDropdownMenuBox(
         expanded = expanded,
@@ -151,13 +183,13 @@ private fun CurrencyView(
                 ),
             readOnly = true,
             value = when {
-                fromCurrency -> currencySelectionState.currencies[currencySelectionState.fromCurrency]
-                    ?: currencySelectionState.fromCurrency
+                fromCurrency -> state.currencies[state.fromCurrency]
+                    ?: state.fromCurrency
 
                 allSelected -> "All currencies"
-                currencySelectionState.toCurrencies.isEmpty() -> "No currencies selected"
-                else -> currencySelectionState.toCurrencies.joinToString {
-                    currencySelectionState.currencies[it] ?: it
+                state.toCurrencies.isEmpty() -> "No currencies selected"
+                else -> state.toCurrencies.joinToString {
+                    state.currencies[it] ?: it
                 }
             },
             onValueChange = {},
@@ -176,7 +208,7 @@ private fun CurrencyView(
                 DropdownMenuItem(
                     text = { Text("All currencies") },
                     onClick = {
-                        viewModel.onEvent(ToggleAllCurrencies(selectAll = !allSelected))
+                        onEvent(ToggleAllCurrencies(selectAll = !allSelected))
                         expanded = false
                     },
                     trailingIcon = {
@@ -186,36 +218,36 @@ private fun CurrencyView(
                 Divider()
             }
 
-            currencySelectionState.currencies.keys.sorted().forEach { currency ->
-                val isSelected = if (fromCurrency) currencySelectionState.fromCurrency == currency
-                else currencySelectionState.toCurrencies.contains(currency)
+            state.currencies.keys.sorted().forEach { currency ->
+                val isSelected = if (fromCurrency) state.fromCurrency == currency
+                else state.toCurrencies.contains(currency)
 
                 DropdownMenuItem(
                     text = {
                         Text(
-                            "${currencySelectionState.currencies[currency] ?: currency} ($currency)",
+                            "${state.currencies[currency] ?: currency} ($currency)",
                             modifier = Modifier.fillMaxWidth()
                         )
                     },
                     onClick = {
                         if (fromCurrency) {
-                            viewModel.onEvent(ChangeFromCurrency(currency))
+                            onEvent(ChangeFromCurrency(currency))
                         } else {
                             when {
                                 allSelected -> {
-                                    viewModel.onEvent(
+                                    onEvent(
                                         ReplaceSelectedCurrencies(
                                             setOf(currency)
                                         )
                                     )
                                 }
 
-                                currencySelectionState.toCurrencies.size == 1 && isSelected -> {
-                                    viewModel.onEvent(ToggleAllCurrencies(selectAll = true))
+                                state.toCurrencies.size == 1 && isSelected -> {
+                                    onEvent(ToggleAllCurrencies(selectAll = true))
                                 }
 
                                 else -> {
-                                    viewModel.onEvent(ToggleToCurrency(currency))
+                                    onEvent(ToggleToCurrency(currency))
                                 }
                             }
                         }
@@ -233,16 +265,15 @@ private fun CurrencyView(
 
 @Composable
 private fun Amount(
-    currencySelectionState: CurrencySelectionState,
-    viewModel: CurrencyViewModel
+    state: CurrencySelectionState,
+    onEvent: (CurrencySelectionEvent) -> Unit
 ) {
     val keyboardController = LocalSoftwareKeyboardController.current
     val focusManager = LocalFocusManager.current
-
     OutlinedTextField(
-        value = currencySelectionState.amount,
+        value = state.amount,
         onValueChange = {
-            viewModel.onEvent(
+            onEvent(
                 ChangeAmount(it)
             )
         },
@@ -264,8 +295,10 @@ private fun Amount(
 
 @Composable
 @OptIn(ExperimentalMaterial3Api::class)
-private fun DatePicker(viewModel: CurrencyViewModel) {
-    val state by viewModel.currencySelectionState.collectAsState()
+private fun DatePicker(
+    state: CurrencySelectionState,
+    onEvent: (CurrencySelectionEvent) -> Unit
+) {
     var showDatePicker by remember { mutableStateOf(false) }
 
     val dateFormatter = remember {
@@ -273,7 +306,6 @@ private fun DatePicker(viewModel: CurrencyViewModel) {
             timeZone = TimeZone.getTimeZone("UTC")
         }
     }
-
     OutlinedTextField(
         value = state.selectedDate,
         onValueChange = {},
@@ -302,14 +334,13 @@ private fun DatePicker(viewModel: CurrencyViewModel) {
                 System.currentTimeMillis()
             }
         )
-
         DatePickerDialog(
             onDismissRequest = { showDatePicker = false },
             confirmButton = {
                 Button(onClick = {
                     datePickerState.selectedDateMillis?.let { millis ->
                         val newDate = dateFormatter.format(Date(millis))
-                        viewModel.onEvent(ChangeDate(newDate))
+                        onEvent(ChangeDate(newDate))
                     }
                     showDatePicker = false
                 }) { Text("OK") }

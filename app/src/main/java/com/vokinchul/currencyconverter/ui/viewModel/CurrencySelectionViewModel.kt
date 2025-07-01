@@ -7,7 +7,7 @@ import com.vokinchul.currencyconverter.ui.feature.currencyselection.ChangeAmount
 import com.vokinchul.currencyconverter.ui.feature.currencyselection.ChangeDate
 import com.vokinchul.currencyconverter.ui.feature.currencyselection.ChangeFromCurrency
 import com.vokinchul.currencyconverter.ui.feature.currencyselection.CurrencySelectionEffect
-import com.vokinchul.currencyconverter.ui.feature.currencyselection.Event
+import com.vokinchul.currencyconverter.ui.feature.currencyselection.CurrencySelectionEvent
 import com.vokinchul.currencyconverter.ui.feature.currencyselection.CurrencySelectionState
 import com.vokinchul.currencyconverter.ui.feature.currencyselection.LoadCurrencies
 import com.vokinchul.currencyconverter.ui.feature.currencyselection.NavigateToResults
@@ -26,7 +26,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-class CurrencyViewModel(
+class CurrencySelectionViewModel(
     private val getCurrenciesUseCase: GetAvailableCurrenciesUseCase
 ) : ViewModel() {
 
@@ -40,18 +40,18 @@ class CurrencyViewModel(
         loadAvailableCurrencies()
     }
 
-    fun onEvent(event: Event) {
-        when (event) {
+    fun onEvent(currencySelectionEvent: CurrencySelectionEvent) {
+        when (currencySelectionEvent) {
             is ChangeFromCurrency -> {
-                updateState { copy(fromCurrency = event.currency) }
+                updateState { copy(fromCurrency = currencySelectionEvent.currency) }
             }
 
             is ToggleToCurrency -> {
                 updateState {
-                    val newSelection = if (toCurrencies.contains(event.currency)) {
-                        toCurrencies - event.currency
+                    val newSelection = if (toCurrencies.contains(currencySelectionEvent.currency)) {
+                        toCurrencies - currencySelectionEvent.currency
                     } else {
-                        toCurrencies + event.currency
+                        toCurrencies + currencySelectionEvent.currency
                     }
                     copy(toCurrencies = newSelection)
                 }
@@ -60,22 +60,22 @@ class CurrencyViewModel(
             is ToggleAllCurrencies -> {
                 updateState {
                     copy(
-                        toCurrencies = if (event.selectAll) currencies.keys.toSet()
+                        toCurrencies = if (currencySelectionEvent.selectAll) currencies.keys.toSet()
                         else emptySet()
                     )
                 }
             }
 
             is ReplaceSelectedCurrencies -> {
-                updateState { copy(toCurrencies = event.currencies) }
+                updateState { copy(toCurrencies = currencySelectionEvent.currencies) }
             }
 
             is ChangeAmount -> {
-                updateState { copy(amount = event.amount) }
+                updateState { copy(amount = currencySelectionEvent.amount) }
             }
 
             is ChangeDate -> {
-                updateState { copy(selectedDate = event.date) }
+                updateState { copy(selectedDate = currencySelectionEvent.date) }
             }
 
             is NavigateToResults -> {

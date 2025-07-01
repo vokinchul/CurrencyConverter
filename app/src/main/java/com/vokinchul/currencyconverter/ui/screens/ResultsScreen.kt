@@ -28,14 +28,34 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.vokinchul.currencyconverter.domain.model.CurrencyRate
+import com.vokinchul.currencyconverter.ui.feature.result.ResultsState
 import com.vokinchul.currencyconverter.ui.feature.result.ShowErrorResults
 import com.vokinchul.currencyconverter.ui.viewModel.ResultsViewModel
 import org.koin.androidx.compose.koinViewModel
 import java.text.SimpleDateFormat
 import java.util.Locale
+
+@Preview(showBackground = true)
+@Composable
+fun ResultsScreenContentPreview() {
+    ResultsScreenContent(
+        state = ResultsState(
+            fromCurrency = "USD",
+            toCurrencies = setOf("EUR", "GBP"),
+            selectedDate = "2025-06-30",
+            amount = "100",
+            rates = listOf(
+                CurrencyRate(currency = "EUR", rate = 0.85),
+                CurrencyRate(currency = "GBP", rate = 0.73)
+            )
+        ),
+        onBack = {}
+    )
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -55,7 +75,18 @@ fun ResultsScreen(
             }
         }
     }
+    ResultsScreenContent(
+        state = state,
+        onBack = onBack
+    )
+}
 
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun ResultsScreenContent(
+    state: ResultsState,
+    onBack: () -> Unit
+) {
     Column(
         modifier = Modifier
             .fillMaxSize()

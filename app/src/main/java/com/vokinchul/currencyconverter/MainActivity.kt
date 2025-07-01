@@ -16,7 +16,7 @@ import com.vokinchul.currencyconverter.ui.navigation.Screens
 import com.vokinchul.currencyconverter.ui.screens.CurrencyScreen
 import com.vokinchul.currencyconverter.ui.screens.ResultsScreen
 import com.vokinchul.currencyconverter.ui.theme.CurrencyConverterTheme
-import com.vokinchul.currencyconverter.ui.viewModel.CurrencyViewModel
+import com.vokinchul.currencyconverter.ui.viewModel.CurrencySelectionViewModel
 import com.vokinchul.currencyconverter.ui.viewModel.ResultsViewModel
 import org.koin.androidx.compose.koinViewModel
 
@@ -36,7 +36,7 @@ class MainActivity : ComponentActivity() {
                     ) {
                         composable(Screens.MainScreen.name) {
                             CurrencyScreen(
-                                viewModel = koinViewModel<CurrencyViewModel>(),
+                                viewModel = koinViewModel<CurrencySelectionViewModel>(),
                                 onNavigateToResults = { fromCurrency, toCurrencies, amount, date ->
                                     val toCurrenciesStr = toCurrencies.joinToString(",")
                                     navController.navigate(
